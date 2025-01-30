@@ -49,10 +49,37 @@ The script and yaml need not be put anywhere special or particular, jsut make su
 
 ---
 
+## Velocity Config/Suggestions
+
+### MOTD
+
+We can set Velocity's `ping-passthrough = "all"` to allow players to see the Velocity MOTD when the corresponding server is off, and the MC server MOTD when it's on.
+
+For instance, the Velocity MOTD might be: "Server offline. Connect to turn it on!", and then the MC server MOTD could be: "Server is online!". This way, players can see if the server is on without having to connect.
+
+- [Velocity MOTD Maker](https://docs.papermc.io/misc/tools/minimessage-web-editor) (Velocity uses the MiniMessage format which is different from vanilla)
+- [Vanilla MOTD Maker](https://mctools.org/motd-creator)
+
+### Informing Players of Startup through Velocity Errors
+
+Within `messages.properties` in the `lang/` folder of Velocity, you can change `velocity.error.connecting-server-error` to something like "Starting up server, please reconnect in a minute." to allow players to see that something is happening when they connect to an offline server.
+
+### Port forwarding for Velocity
+
+There are tons of resources about this online. Usually the setting is found in the Firewall section of your router.
+
+I recommend using the default Minecraft port 25565, so that you can use forced hosts without including the port in the url if that's relevant to you (i.e. "mc.mydomain.com" instead of "mc.mydomain.com:25564")
+
+### Multiple Minecraft Servers, One Computer
+
+If you are allowing only one server at a time to be running (i.e. `one-server-at-a-time` is set), then all servers may run on the same port, as only one will be using it at a time. This would be set in both `velocity.toml` on Velocity and `server.properties` in the MC servers. This also makes setting firewall rules easy.
+
+---
+
 ## Todo
 
 - [ ] Find a way to check if the user is using the pc and do not put it to sleep if so
 - [ ] Piggyback off Velocity error messages to tell players that:
-	- [ ] Another server is already running when they try to join one, if ONE_SERVER_AT_A_TIME is set
+	- [x] ~~Another server is already running when they try to join one, if ONE_SERVER_AT_A_TIME is set~~ See Velocity Advice section
 	- [ ] Server is starting/failed to start
-	- [ ] Computer is turning on/failed ot turn on
+	- [ ] Computer is turning on/failed to turn on
