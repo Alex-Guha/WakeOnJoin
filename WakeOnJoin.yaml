@@ -1,0 +1,35 @@
+# Path to Velocity logs
+log: "/path/to/Velocity/logs/latest.log"
+
+# Prevents players from starting multiple servers at once (i.e. if all are on the same computer)
+one-server-at-a-time: true
+
+# The following 4 can be set on a per-server basis
+
+# How long to allow the server to start up or stop before checking for errors, in seconds. Always overestimate, or there may be errors.
+lockout: 90
+
+# In the event that the server was already running when this script started, assume the computer should stay on after turning off the server?
+initial-awake: true
+
+# How long to wait after no players are left online before turning off the server
+shutdown-time: 1200
+
+# Max time to allow for for the computer to boot
+boot-time: 90
+
+my_server:
+  ip: "192.168.0.2" # If you need to add a port, simply add "-p port" after the ip (i.e. "192.168.0.2 -p 22")
+  user: "[ssh username]"
+  # sleep-command is optional and can be simply removed if you do not want the computer to be put to sleep
+  sleep-command: "rundll32.exe powrprof.dll, SetSuspendState 0,1,0" # This is for a windows computer, you might want to change or remove it
+  start-command: 'cd "/path/to/minecraft/server/" && ./run_command.sh'
+  wake-command: "sudo etherwake [mac address]"
+  lockout: 120
+  initial-awake: true
+my_server_2:
+  ip: "1.1.1.1"
+  user: "username"
+  sleep-command: "rundll32.exe powrprof.dll, SetSuspendState 0,1,0"
+  start-command: 'cd "/home/user/Minecraft/my_server_2" && ./start_script.sh'
+  wake-command: "sudo etherwake FF:FF:FF:FF:FF:FF"
