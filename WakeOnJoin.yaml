@@ -18,12 +18,12 @@ shutdown-time: 1200
 # Max time to allow for for the computer to boot
 boot-time: 90
 
-my_server:
-  ip: "192.168.0.2" # If you need to add a port, simply add "-p port" after the ip (i.e. "192.168.0.2 -p 22")
+my_server: # These server names need to be the same as configured in velocity.toml's servers section
+  ip: "192.168.0.2" # This is used for ssh. If you aren't using the default ssh port (22), simply add "-p port" after the ip (i.e. "192.168.0.2 -p 2024")
   user: "[ssh username]"
   # sleep-command is optional and can be simply removed if you do not want the computer to be put to sleep
   sleep-command: "rundll32.exe powrprof.dll, SetSuspendState 0,1,0" # This is for a windows computer, you might want to change or remove it
-  start-command: 'cd "/path/to/minecraft/server/" && ./run_command.sh'
+  start-command: 'cd "/path/to/minecraft/server/" && ./run_command.sh' # you can replace "./run.sh" with teh full java launch command if you do not have them in a bash script
   wake-command: "sudo etherwake [mac address]"
   lockout: 120
   initial-awake: true
