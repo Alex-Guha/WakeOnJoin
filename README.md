@@ -2,15 +2,18 @@
 
 This script piggybacks off of [Velocity](https://papermc.io/software/velocity)'s logs to turn on and off one or more minecraft server, *regardless of launcher*, as well as the computers they are running on via Wake On LAN.
 
-## Prerequisites
+This has been tested for Velocity 3.4.0
 
 ---
 
+## Prerequisites
+
 - Linux
-- [Velocity](https://papermc.io/software/velocity)
+- [Velocity](https://papermc.io/software/velocity) set up.
 - `etherwake` or equivalent wake-on-lan service, and verify it works as expected
 - `ssh` set up to allow the computer running the Velocity server to ssh into the computers running the servers (with keys and not passwords).
 - Install `yq` (a YAML parser): `sudo snap install yq`
+- If the Minecraft server computers are not running Linux, you may need to install `tmux`
 - Verify `tmux` commands work properly over ssh (sent from the Velocity computer to the server computers):
 	1) `ssh user@ip "tmux new-session -d -s test [server start command]"`
 	2) `ssh user@ip "tmux has-session -t test"`
@@ -18,13 +21,15 @@ This script piggybacks off of [Velocity](https://papermc.io/software/velocity)'s
 	4) `ssh user@ip "tmux send-keys -t test 'stop' C-m"`
 - Ensure all commands you put in the yaml file work as expected, particularly the start-command (test over ssh)
 
-## Running
-
 ---
+
+## Running
 
 ### Configure `WakeOnJoin.yaml`
 
 This should be fairly self explanatory, take a look through the yaml file for more info.
+
+The script and yaml need not be put anywhere special or particular, jsut make sure the file paths set in the yaml are all correct.
 
 ### To start the script:
 
@@ -34,9 +39,9 @@ This should be fairly self explanatory, take a look through the yaml file for mo
 
 `pkill -TERM -g $(pgrep -o -f WakeOnJoin.sh)`
 
-## Autostartup
-
 ---
+
+## Autostartup
 
 1) `crontab -e`
 2) Add entry: `@reboot cd /path/to/script/ && nohup ./WakeOnJoin.sh > WakeOnJoin.log 2>&1 &`
