@@ -2,12 +2,16 @@
 
 This script piggybacks off of [Velocity](https://papermc.io/software/velocity)'s logs to turn on and off one or more minecraft server, *regardless of launcher*, as well as the computers they are running on via Wake On LAN.
 
-#### Why? What's the use case?
+### Why? What's the use case?
 
 I have a powerful desktop computer at home that I never make full usage of. I also have a raspberry pi acting as a low power server for a variety of applications on my home network. I didn't want to run my desktop when it's not needed to save on the electricity bill, but I also wanted to leverage the compute of my desktop.  
 I went looking for solutions and, while I found some, they were launcher specific and none incorporated WakeOnLAN. Thus this was made.
 
 I could also see this being used with a proxmox setup, so I extended it to work for any number of servers, on any number of computers.
+
+### Existing Issues
+
+If the computer was off and the script starts it, and then the user gets on the computer and starts using it as well, the script will not know and will put the computer to sleep after all players get off and the timer elapses, resulting in it going to sleep right in front of the user.
 
 This has been tested for Velocity 3.4.0
 
