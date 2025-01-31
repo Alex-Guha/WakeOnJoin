@@ -115,12 +115,14 @@ start_timer() {
     fi
 
     # Only put the PC to sleep if it wasn't already awake
-    if (( initial_awake[$1] )); then
+    if (( ! initial_awake[$1] )); then
       # TODO check if the user is using the pc
       if [[ "${server_sleep_commands[$1]}" != "" ]]; then
         echo "[+] Putting PC to sleep"
-        if ! ssh ${server_users[$1]}@${server_ips[$1]} "${server_sleep_commands[$1]}" > /dev/null 2>&1; then
+        if ! nc -z -w 5 "${server_ips[$SERVER_NAME]}" "22" > /dev/null 2>&1; then
           echo "[-] PC unreachable, may already be asleep."
+        else
+          ssh ${server_users[$1]}@${server_ips[$1]} "${server_sleep_commands[$1]}" > /dev/null 2>&1
         fi
 
       else
