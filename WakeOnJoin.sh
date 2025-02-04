@@ -81,7 +81,7 @@ start_timer() {
 
     if [[ $1 != "" ]]; then
       # Stop the server and kill the tmux instance
-      echo "[+] No players have logged on in ${server_shutdown_time[$1]} seconds, turning server $1 off"
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] No players have logged on in ${server_shutdown_time[$1]} seconds, turning server $1 off"
       if ssh "${server_users[$1]}@${server_ips[$1]}" "tmux has-session -t $1" > /dev/null 2>&1; then
         ssh ${server_users[$1]}@${server_ips[$1]} "tmux send-keys -t $1 'stop' C-m"
         echo $(date +%s) > /tmp/{$1}_lockout
@@ -99,16 +99,16 @@ start_timer() {
 
         # Assume the server hanged after $LOCKOUT seconds if it's still running, and kill it
         if ssh ${server_users[$1]}@${server_ips[$1]} "tmux has-session -t $1" > /dev/null 2>&1; then
-          echo "[-] $1 hung during shutdown."
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] $1 hung during shutdown."
 
           ssh ${server_users[$1]}@${server_ips[$1]} "tmux kill-session -t $1"
-          echo "[-] Killed $1."
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] Killed $1."
 
           # Piggyback off Velocity's logs to send info to tell the main script that the server was shutdown
           echo "Shutdown PC server $1" >> $LOG
         fi
       else
-        echo "[-] $1 is already off. Either it was manually shutdown or it crashed."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] $1 is already off. Either it was manually shutdown or it crashed."
         # Piggyback off Velocity's logs to send info to tell the main script that the server was shutdown
         echo "Shutdown PC server $1" >> $LOG
       fi
@@ -118,18 +118,18 @@ start_timer() {
     if (( ! initial_awake[$1] )); then
       # TODO check if the user is using the pc
       if [[ "${server_sleep_commands[$1]}" != "" ]]; then
-        echo "[+] Putting PC to sleep"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Putting PC to sleep"
         if ! nc -z -w 5 "${server_ips[$SERVER_NAME]}" "22" > /dev/null 2>&1; then
-          echo "[-] PC unreachable, may already be asleep."
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] PC unreachable, may already be asleep."
         else
-          ssh ${server_users[$1]}@${server_ips[$1]} "${server_sleep_commands[$1]}" > /dev/null 2>&1
+          dssh ${server_users[$1]}@${server_ips[$1]} "${server_sleep_commands[$1]}" > /dev/null 2>&1
         fi
 
       else
-        echo "[+] No sleep command, skipping."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] No sleep command, skipping."
       fi
     else
-        echo "[ ] PC was already awake. Skipping sleep command."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] PC was already awake. Skipping sleep command."
     fi
   ) &
 
@@ -137,7 +137,7 @@ start_timer() {
   sleep_pid[$1]=$(cat /tmp/{$1}_sleep_pid)
   rm -f /tmp/{$1}_sleep_pid
   timer_active[$1]=1
-  echo "[+] Started timer ${timer_pid[$1]}"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Started timer ${timer_pid[$1]}"
 }
 
 check_lockout() {
@@ -183,10 +183,10 @@ while true; do
             else
               # Kill the tmux session if it exists
               ssh ${server_users[$SERVER_NAME]}@${server_ips[$SERVER_NAME]} "tmux kill-session -t $SERVER_NAME"
-              echo "[-] Killed $SERVER_NAME."
+              echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] Killed $SERVER_NAME."
             fi
           else
-            echo "[-] $SERVER_NAME not available."
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] $SERVER_NAME not available."
             server_active[$SERVER_NAME]=0 # false
           fi
         fi
@@ -199,6 +199,7 @@ while true; do
         if (( ONE_SERVER_AT_A_TIME )); then
           for SERVER_ACTIVE in "${server_active[@]}"; do
             if (( SERVER_ACTIVE )); then
+              echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] One server at a time. Skipping $SERVER_NAME startup."
               continue 2
             fi
           done
@@ -206,10 +207,10 @@ while true; do
 
         # Check if the computer is already awake
         if nc -z -w 5 "${server_ips[$SERVER_NAME]}" "22" > /dev/null 2>&1; then
-          echo "[+] Computer already awake."
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Computer already awake."
           initial_awake[$SERVER_NAME]=1 # true
         else
-          echo "[+] Turning computer on."
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Turning computer on."
           eval ${server_wake_commands[$SERVER_NAME]}
           initial_awake[$SERVER_NAME]=0 # false
         fi
@@ -219,28 +220,29 @@ while true; do
       # Allow some time for the computer to wake up
       for i in {1..6}; do
         if nc -z -w 5 "${server_ips[$SERVER_NAME]}" "22" > /dev/null 2>&1; then
-          echo "[+] Computer is online."
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Computer is online."
           break
         elif [[ $i -eq 6 ]]; then
-          echo "[-] Computer failed to turn on in the allotted time."
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] Computer failed to turn on in the allotted time."
           continue 2
         fi
-        echo "[ ] Waiting for computer to come online..."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] Waiting for computer to come online..."
+        eval ${server_wake_commands[$SERVER_NAME]}
         sleep $(( server_boot_time[$SERVER_NAME] / 6 ))
       done
 
-      echo "[+] Starting server."
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Starting server."
       result=$(ssh ${server_users[$SERVER_NAME]}@${server_ips[$SERVER_NAME]} "tmux new-session -d -s $SERVER_NAME '${server_start_commands[$SERVER_NAME]}'")
 
       if $result; then
-        echo "[+] $SERVER_NAME started."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] $SERVER_NAME started."
         server_active[$SERVER_NAME]=1 # true
         echo $(date +%s) > /tmp/{$SERVER_NAME}_lockout
 
         # Just in case no one actually joins the server
         start_timer $SERVER_NAME
       else
-        echo "[-] $SERVER_NAME startup failed!"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] $SERVER_NAME startup failed!"
       fi
 
     # Track player count and log joiners
@@ -251,7 +253,7 @@ while true; do
 
       PLAYER_NAME=$(echo "$line" | sed -E 's/.*\[(.*)\] (\S+) -> (\S+) has connected/\2/')
 
-      echo "[>] $PLAYER_NAME joined $SERVER_NAME"
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] [>] $PLAYER_NAME joined $SERVER_NAME"
 
       # Handles the case where the server was running before the script was started
       if (( ! server_active[$SERVER_NAME] )); then
@@ -267,7 +269,7 @@ while true; do
         kill "${timer_pid[$SERVER_NAME]}"
         kill "${sleep_pid[$SERVER_NAME]}"
         timer_active[$SERVER_NAME]=0 # false
-        echo "[+] Killed timer ${timer_pid[$SERVER_NAME]}"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Killed timer ${timer_pid[$SERVER_NAME]}"
       fi
 
     # Track player count, log leavers, and begin timer if no players left
@@ -278,7 +280,7 @@ while true; do
 
       PLAYER_NAME=$(echo "$line" | sed -E 's/.*\[(.*)\] (\S+) -> (\S+) has disconnected/\2/')
 
-      echo "[<] $PLAYER_NAME left $SERVER_NAME"
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] [<] $PLAYER_NAME left $SERVER_NAME"
 
       # Handles the case where the server was running before the script was started
       if (( ! server_active[$SERVER_NAME] )); then
@@ -289,7 +291,7 @@ while true; do
         players_online[$SERVER_NAME]=$(echo "$PANE" | tac | grep -m 1 -oP 'There are \K[0-9]+(?= of a max of [0-9]+ players online:)')
       fi
 
-      echo "[+] ${players_online[$SERVER_NAME]} players online"
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] ${players_online[$SERVER_NAME]} players online"
 
       if (( ! players_online[$SERVER_NAME] )); then
         start_timer $SERVER_NAME
@@ -301,10 +303,5 @@ while true; do
 
       server_active[$SERVER_NAME]=0 # false
     fi
-  done
-
-  if [ $? -ne 0 ]; then
-    echo "[-] Error reading Velocity log. Retrying."
-    sleep 1
-  fi
+  done || echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] Error reading Velocity log. Retrying." && sleep 5
 done
