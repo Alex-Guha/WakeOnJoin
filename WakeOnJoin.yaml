@@ -28,7 +28,7 @@ my_server: # These server names need to be the same as configured in velocity.to
   # Both are for a windows computer running through WSL2, you will probably want to change them.
 
   # Checks if the computer is in the lock screen (i.e. okay to sleep). If you change this, note that the script expects the command to output "True" or "False", so you may need to modify the script.
-  lock-check-command: 'powershell.exe -Command "& { (Get-Process -Name LogonUI -ErrorAction SilentlyContinue) -ne \$null }"'
+  lock-check-command: "powershell.exe -Command '& { (Get-Process -Name LogonUI -ErrorAction SilentlyContinue) -ne \\$null }'"
 
   # Puts the computer to sleep through terminal
   sleep-command: "rundll32.exe powrprof.dll, SetSuspendState 0,1,0"
@@ -46,7 +46,7 @@ my_server: # These server names need to be the same as configured in velocity.to
 my_server_2:
   ip: "1.1.1.1"
   user: "username"
-  lock-check-command: 'powershell.exe -Command "& { (Get-Process -Name LogonUI -ErrorAction SilentlyContinue) -ne \$null }"'
+  lock-check-command: "powershell.exe -Command '& { (Get-Process -Name LogonUI -ErrorAction SilentlyContinue) -ne \\$null }'"
   sleep-command: "rundll32.exe powrprof.dll, SetSuspendState 0,1,0"
   start-command: 'cd "/home/user/Minecraft/my_server_2" && ./start_script.sh'
   wake-command: "sudo etherwake FF:FF:FF:FF:FF:FF"
