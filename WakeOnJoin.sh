@@ -4,9 +4,13 @@
 to_boolean() {
   case "$1" in
     true) return 1 ;;
+    True) return 1 ;;
+    TRUE) return 1 ;;
     ture) return 1 ;;
     rtue) return 1 ;;
     false) return 0 ;;
+    False) return 0 ;;
+    FALSE) return 0 ;;
     flase) return 0 ;;
     fasle) return 0 ;;
     0) return 0 ;;
@@ -21,6 +25,7 @@ YAML_FILE="WakeOnJoin.yaml"
 # User set variables
 declare -A server_ips
 declare -A server_users
+declare -A server_check_commands
 declare -A server_sleep_commands
 declare -A server_start_commands
 declare -A server_wake_commands
@@ -55,6 +60,7 @@ while IFS= read -r SERVER; do
   # Populate associative arrays
   server_ips["$SERVER"]=$(yq eval ".\"$SERVER\".ip" "$YAML_FILE")
   server_users["$SERVER"]=$(yq eval ".\"$SERVER\".user" "$YAML_FILE")
+  server_check_commands["$SERVER"]=$(yq eval ".\"$SERVER\".\"lock-check-command\" // \"echo\"" "$YAML_FILE")
   server_sleep_commands["$SERVER"]=$(yq eval ".\"$SERVER\".\"sleep-command\" // \"echo\"" "$YAML_FILE")
   server_start_commands["$SERVER"]=$(yq eval ".\"$SERVER\".\"start-command\"" "$YAML_FILE")
   server_wake_commands["$SERVER"]=$(yq eval ".\"$SERVER\".\"wake-command\"" "$YAML_FILE")
@@ -79,54 +85,62 @@ start_timer() {
     echo $! > /tmp/{$1}_sleep_pid
     wait
 
-    if [[ $1 != "" ]]; then
-      # Stop the server and kill the tmux instance
-      echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] No players have logged on in ${server_shutdown_time[$1]} seconds, turning server $1 off"
-      if ssh "${server_users[$1]}@${server_ips[$1]}" "tmux has-session -t $1" > /dev/null 2>&1; then
-        ssh ${server_users[$1]}@${server_ips[$1]} "tmux send-keys -t $1 'stop' C-m"
-        echo $(date +%s) > /tmp/{$1}_lockout
+    # Stop the server and kill the tmux instance
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] No players have logged on in ${server_shutdown_time[$1]} seconds, turning server $1 off"
+    if ssh "${server_users[$1]}@${server_ips[$1]}" "tmux has-session -t $1" > /dev/null 2>&1; then
+      ssh ${server_users[$1]}@${server_ips[$1]} "tmux send-keys -t $1 'stop' C-m"
+      echo $(date +%s) > /tmp/{$1}_lockout
 
-        # Ensure the server shuts down (gracefully)
-        for i in {1..6}; do
-          sleep $(( server_lockout[$1] / 6 ))
-          if ! ssh ${server_users[$1]}@${server_ips[$1]} "tmux has-session -t $1" > /dev/null 2>&1; then
-
-            # Piggyback off Velocity's logs to send info to tell the main script that the server was shutdown
-            echo "Shutdown PC server $1" >> $LOG
-            break
-          fi
-        done
-
-        # Assume the server hanged after $LOCKOUT seconds if it's still running, and kill it
-        if ssh ${server_users[$1]}@${server_ips[$1]} "tmux has-session -t $1" > /dev/null 2>&1; then
-          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] $1 hung during shutdown."
-
-          ssh ${server_users[$1]}@${server_ips[$1]} "tmux kill-session -t $1"
-          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] Killed $1."
+      # Ensure the server shuts down (gracefully)
+      for i in {1..6}; do
+        sleep $(( server_lockout[$1] / 6 ))
+        if ! ssh ${server_users[$1]}@${server_ips[$1]} "tmux has-session -t $1" > /dev/null 2>&1; then
 
           # Piggyback off Velocity's logs to send info to tell the main script that the server was shutdown
           echo "Shutdown PC server $1" >> $LOG
+          break
         fi
-      else
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] $1 is already off. Either it was manually shutdown or it crashed."
+      done
+
+      # Assume the server hanged after $LOCKOUT seconds if it's still running, and kill it
+      if ssh ${server_users[$1]}@${server_ips[$1]} "tmux has-session -t $1" > /dev/null 2>&1; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] $1 hung during shutdown."
+
+        ssh ${server_users[$1]}@${server_ips[$1]} "tmux kill-session -t $1"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] Killed $1."
+
         # Piggyback off Velocity's logs to send info to tell the main script that the server was shutdown
         echo "Shutdown PC server $1" >> $LOG
       fi
+    else
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] $1 is already off. Either it was manually shutdown or it crashed."
+      # Piggyback off Velocity's logs to send info to tell the main script that the server was shutdown
+      echo "Shutdown PC server $1" >> $LOG
     fi
 
     # Only put the PC to sleep if it wasn't already awake
     if (( ! initial_awake[$1] )); then
-      # TODO check if the user is using the pc
-      if [[ "${server_sleep_commands[$1]}" != "" ]]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Putting PC to sleep"
+      if [[ "${server_check_commands[$1]}" != "" ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Checking if computer is in lock screen."
         if ! nc -z -w 5 "${server_ips[$SERVER_NAME]}" "22" > /dev/null 2>&1; then
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] PC unreachable, may already be asleep."
         else
-          dssh ${server_users[$1]}@${server_ips[$1]} "${server_sleep_commands[$1]}" > /dev/null 2>&1
-        fi
+          IN_USE=$(to_boolean $(ssh ${server_users[$1]}@${server_ips[$1]} "${server_check_commands[$1]}"))
 
+          if (( ! IN_USE )); then
+            if [[ "${server_sleep_commands[$1]}" != "" ]]; then
+              echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Putting PC to sleep"
+              ssh ${server_users[$1]}@${server_ips[$1]} "${server_sleep_commands[$1]}" > /dev/null 2>&1
+
+            else
+              echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] No sleep command, skipping sleep."
+            fi
+          else
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] Computer not in lock screen, skipping sleep."
+          fi
+        fi
       else
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] No sleep command, skipping."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] No lock screen check command, skipping sleep."
       fi
     else
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] PC was already awake. Skipping sleep command."

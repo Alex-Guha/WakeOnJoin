@@ -19,17 +19,34 @@ shutdown-time: 1200
 boot-time: 90
 
 my_server: # These server names need to be the same as configured in velocity.toml's servers section
-  ip: "192.168.0.2" # This is used for ssh. If you aren't using the default ssh port (22), simply add "-p port" after the ip (i.e. "192.168.0.2 -p 2024")
+
+  # This is used for ssh. If you aren't using the default ssh port (22), simply add "-p port" after the ip (i.e. "192.168.0.2 -p 2024")
+  ip: "192.168.0.2"
   user: "[ssh username]"
-  # sleep-command is optional and can be simply removed if you do not want the computer to be put to sleep
-  sleep-command: "rundll32.exe powrprof.dll, SetSuspendState 0,1,0" # This is for a windows computer, you might want to change or remove it
-  start-command: 'cd "/path/to/minecraft/server/" && ./run_command.sh' # you can replace "./run.sh" with teh full java launch command if you do not have them in a bash script
+
+  # lock-check-command and sleep-command are optional and can be simply removed if you do not want the computer to be put to sleep.
+  # Both are for a windows computer running through WSL2, you will probably want to change them.
+
+  # Checks if the computer is in the lock screen (i.e. okay to sleep). If you change this, note that the script expects the command to output "True" or "False", so you may need to modify the script.
+  lock-check-command: 'powershell.exe -Command "& { (Get-Process -Name LogonUI -ErrorAction SilentlyContinue) -ne \$null }"'
+
+  # Puts the computer to sleep through terminal
+  sleep-command: "rundll32.exe powrprof.dll, SetSuspendState 0,1,0"
+
+  # you can replace "./run.sh" with the full java launch command if you do not have them in a bash script
+  start-command: 'cd "/path/to/minecraft/server/" && ./run_command.sh'
+
+  # Whatever Wake On LAN command you want (run directly, not sent over ssh)
   wake-command: "sudo etherwake [mac address]"
+
+  # Per-server customization options
   lockout: 120
   initial-awake: true
+
 my_server_2:
   ip: "1.1.1.1"
   user: "username"
+  lock-check-command: 'powershell.exe -Command "& { (Get-Process -Name LogonUI -ErrorAction SilentlyContinue) -ne \$null }"'
   sleep-command: "rundll32.exe powrprof.dll, SetSuspendState 0,1,0"
   start-command: 'cd "/home/user/Minecraft/my_server_2" && ./start_script.sh'
   wake-command: "sudo etherwake FF:FF:FF:FF:FF:FF"

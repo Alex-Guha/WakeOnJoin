@@ -9,10 +9,6 @@ I went looking for solutions and, while I found some, they were launcher specifi
 
 I could also see this being used with a proxmox setup, so I extended it to work for any number of servers, on any number of computers.
 
-### Existing Issues
-
-If the computer was off and the script starts it, and then the user gets on the computer and starts using it as well, the script will not know and will put the computer to sleep after all players get off and the timer elapses, resulting in it going to sleep right in front of the user.
-
 This has been tested for Velocity 3.4.0
 
 ---
@@ -22,9 +18,14 @@ This has been tested for Velocity 3.4.0
 - Linux
 - [Velocity](https://papermc.io/software/velocity) set up.
 - `etherwake` or equivalent wake-on-lan service, and verify it works as expected
-- `ssh` set up to allow the computer running the Velocity server to ssh into the computers running the servers (with keys and not passwords).
+- `ssh` set up to allow the computer running the Velocity server to ssh into the computers running the servers (with a key and not using a password).
 - Install `yq` (a YAML parser): `sudo snap install yq`
 - If the Minecraft server computers are not running Linux, you may need to install `tmux`
+
+### Potential Issues
+
+This script was written with the ssh destination being WSL2 on Windows (i.e. where the Minecraft server is running). `tmux` is the most notable potential issue on other machines, but the commands included in `WakeOnJoin.yaml` will also need to be changed.
+
 - Verify `tmux` commands work properly over ssh (sent from the Velocity computer to the server computers):
 	1) `ssh user@ip "tmux new-session -d -s test [server start command]"`
 	2) `ssh user@ip "tmux has-session -t test"`
@@ -89,8 +90,9 @@ If you are allowing only one server at a time to be running (i.e. `one-server-at
 
 ## Todo
 
-- [ ] Find a way to check if the user is using the pc and do not put it to sleep if so
+- [x] Find a way to check if the user is using the pc and do not put it to sleep if so
+- [ ] Separate out the `tmux` commands into the yaml for increased user control
 - [ ] Piggyback off Velocity error messages to tell players that:
-	- [x] ~~Another server is already running when they try to join one, if ONE_SERVER_AT_A_TIME is set~~ See Velocity Advice section
+	- [ ] Another server is already running when they try to join one, if ONE_SERVER_AT_A_TIME is set
 	- [ ] Server is starting/failed to start
 	- [ ] Computer is turning on/failed to turn on
