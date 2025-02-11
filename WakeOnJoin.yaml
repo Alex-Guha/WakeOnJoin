@@ -4,18 +4,20 @@ log: "/path/to/Velocity/logs/latest.log"
 # Prevents players from starting multiple servers at once (i.e. if all are on the same computer)
 one-server-at-a-time: true
 
-# The following 4 can be set on a per-server basis
+# The following 3 can be set on a per-server basis
 
 # How long to allow the server to start up or stop before checking for errors, in seconds. Always overestimate, or there may be errors.
-lockout: 90
+lockout: 120
 
 # How long to wait after no players are left online before turning off the server
-shutdown-time: 1200
+shutdown-time: 900
 
 # Max time to allow for for the computer to boot
 boot-time: 90
 
-my_server: # These server names need to be the same as configured in velocity.toml's servers section
+
+# These server names need to be the same as configured in velocity.toml's servers section
+my_server:
 
   # This is used for ssh. If you aren't using the default ssh port (22), simply add "-p port" after the ip (i.e. "192.168.0.2 -p 2024")
   ip: "192.168.0.2"
@@ -36,7 +38,7 @@ my_server: # These server names need to be the same as configured in velocity.to
   # Whatever Wake On LAN command you want (run directly, not sent over ssh)
   wake-command: "sudo etherwake [mac address]"
 
-  # Per-server customization options
+  # Per-server customization options example
   lockout: 120
 
 my_server_2:

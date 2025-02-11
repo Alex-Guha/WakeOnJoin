@@ -36,11 +36,7 @@ declare -A server_shutdown_time
 declare -A server_boot_time
 
 # Script variables and flags
-declare -A players_online
 declare -A server_active
-declare -A timer_active
-declare -A timer_pid
-declare -A sleep_pid
 
 LOG=$(yq eval '.log' "$YAML_FILE")
 
@@ -66,23 +62,36 @@ while IFS= read -r SERVER; do
   server_shutdown_time["$SERVER"]=$(yq eval ".\"$SERVER\".\"shutdown-time\" // \"$SHUTDOWN_TIME\"" "$YAML_FILE")
   server_boot_time["$SERVER"]=$(yq eval ".\"$SERVER\".\"boot-time\" // \"$BOOT_TIME\"" "$YAML_FILE")
 
-  players_online["$SERVER"]=0
   server_active["$SERVER"]=0 # False
-  timer_active["$SERVER"]=0 # False
-  timer_pid["$SERVER"]=0
-  sleep_pid["$SERVER"]=0
 done < <(yq eval '. | keys | .[]' "$YAML_FILE")
 
 
-
-start_timer() {
+server_monitor() {
   (
-    sleep ${server_shutdown_time[$1]} &
-    echo $! > /tmp/{$1}_sleep_pid
-    wait
+    # Proceed to subscript body when no players have been on for *at least* server_shutdown_time, and at most 2x that
+    while true; do
+      sleep ${server_shutdown_time[$1]}
 
-    # Stop the server and kill the tmux instance
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] No players have logged on in ${server_shutdown_time[$1]} seconds, turning server $1 off"
+      # Check if 
+      if ssh "${server_users[$1]}@${server_ips[$1]}" "tmux has-session -t $1" > /dev/null 2>&1; then
+        PANE=$(ssh ${server_users[$SERVER_NAME]}@${server_ips[$SERVER_NAME]} "tmux send-keys -t $SERVER_NAME 'list' Enter; sleep 0.5; tmux capture-pane -p -t $SERVER_NAME")
+        PLAYERS_ONLINE=$(echo "$PANE" | tac | grep -m 1 -oP 'There are \K[0-9]+(?= of a max of [0-9]+ players online:)')
+        if (( PLAYERS_ONLINE == 0 )); then
+          sleep ${server_shutdown_time[$1]}
+          
+          PANE=$(ssh ${server_users[$SERVER_NAME]}@${server_ips[$SERVER_NAME]} "tmux send-keys -t $SERVER_NAME 'list' Enter; sleep 0.5; tmux capture-pane -p -t $SERVER_NAME")
+          PLAYERS_ONLINE=$(echo "$PANE" | tac | grep -m 1 -oP 'There are \K[0-9]+(?= of a max of [0-9]+ players online:)')
+          if (( PLAYERS_ONLINE == 0 )); then
+            break
+          fi
+        fi
+      else
+        break
+      fi
+    done
+
+    # Handles stopping server
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] No players have logged on in at least 15 minutes, turning server $1 off"
     if ssh "${server_users[$1]}@${server_ips[$1]}" "tmux has-session -t $1" > /dev/null 2>&1; then
       ssh ${server_users[$1]}@${server_ips[$1]} "tmux send-keys -t $1 'stop' C-m"
       echo $(date +%s) > /tmp/{$1}_lockout
@@ -91,9 +100,6 @@ start_timer() {
       for i in {1..6}; do
         sleep $(( server_lockout[$1] / 6 ))
         if ! ssh ${server_users[$1]}@${server_ips[$1]} "tmux has-session -t $1" > /dev/null 2>&1; then
-
-          # Piggyback off Velocity's logs to send info to tell the main script that the server was shutdown
-          echo "Shutdown PC server $1" >> $LOG
           break
         fi
       done
@@ -104,17 +110,15 @@ start_timer() {
 
         ssh ${server_users[$1]}@${server_ips[$1]} "tmux kill-session -t $1"
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] Killed $1."
-
-        # Piggyback off Velocity's logs to send info to tell the main script that the server was shutdown
-        echo "Shutdown PC server $1" >> $LOG
       fi
     else
       echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] $1 is already off. Either it was manually shutdown or it crashed."
-      # Piggyback off Velocity's logs to send info to tell the main script that the server was shutdown
-      echo "Shutdown PC server $1" >> $LOG
     fi
 
+    # Piggyback off Velocity's logs to send info to tell the main script that the server was shutdown
+    echo "Shutdown PC server $1" >> $LOG
     
+    # Handles computer sleep
     if ! nc -z -w 5 "${server_ips[$SERVER_NAME]}" "22" > /dev/null 2>&1; then
       echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] PC unreachable, may already be asleep."
 
@@ -138,12 +142,6 @@ start_timer() {
       echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] No sleep command."
     fi
   ) &
-
-  timer_pid[$1]=$!  # Save the PID of the background process
-  sleep_pid[$1]=$(cat /tmp/{$1}_sleep_pid)
-  rm -f /tmp/{$1}_sleep_pid
-  timer_active[$1]=1
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Started timer ${timer_pid[$1]}"
 }
 
 check_lockout() {
@@ -201,7 +199,7 @@ while true; do
       else
 
         # Prevents players from starting multiple servers at the same time
-        # TODO Add feedback to the player so they know there's a server up
+        # TODO Add feedback to the player so they know there's a server up, even if it isn't the one they wanted
         if (( ONE_SERVER_AT_A_TIME )); then
           for SERVER_ACTIVE in "${server_active[@]}"; do
             if (( SERVER_ACTIVE )); then
@@ -243,8 +241,8 @@ while true; do
         server_active[$SERVER_NAME]=1 # true
         echo $(date +%s) > /tmp/{$SERVER_NAME}_lockout
 
-        # Just in case no one actually joins the server
-        start_timer $SERVER_NAME
+        # Spin off a script to monitor the server
+        server_monitor $SERVER_NAME
       else
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] $SERVER_NAME startup failed!"
       fi
@@ -252,8 +250,6 @@ while true; do
     # Track player count and log joiners
     elif echo "$line" | grep -qE "\[server connection\] .* has connected$"; then
       SERVER_NAME=$(echo "$line" | sed -E 's/.*\[(.*)\] (\S+) -> (\S+) has connected/\3/')
-
-      (( players_online[$SERVER_NAME]++ ))
 
       PLAYER_NAME=$(echo "$line" | sed -E 's/.*\[(.*)\] (\S+) -> (\S+) has connected/\2/')
 
@@ -263,26 +259,13 @@ while true; do
       if (( ! server_active[$SERVER_NAME] )); then
         server_active[$SERVER_NAME]=1 # true
 
-        sleep 10  # TODO Think of a more elegant way to handle this, as mutliple players joining/leaving at the same time will mess up the player counter
-
-        # Accounts for there being players online already
-        PANE=$(ssh ${server_users[$SERVER_NAME]}@${server_ips[$SERVER_NAME]} "tmux send-keys -t $SERVER_NAME 'list' Enter; sleep 0.5; tmux capture-pane -p -t $SERVER_NAME")
-        players_online[$SERVER_NAME]=$(echo "$PANE" | tac | grep -m 1 -oP 'There are \K[0-9]+(?= of a max of [0-9]+ players online:)')
-      fi
-
-      # Stop the shutdown timer if it's running
-      if (( timer_active[$SERVER_NAME] )); then
-        kill "${timer_pid[$SERVER_NAME]}"
-        kill "${sleep_pid[$SERVER_NAME]}"
-        timer_active[$SERVER_NAME]=0 # false
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Killed timer ${timer_pid[$SERVER_NAME]}"
+        # Spin off a script to monitor the server
+        server_monitor $SERVER_NAME
       fi
 
     # Track player count, log leavers, and begin timer if no players left
     elif echo "$line" | grep -qE "\[server connection\] .* has disconnected$"; then
       SERVER_NAME=$(echo "$line" | sed -E 's/.*\[(.*)\] (\S+) -> (\S+) has disconnected/\3/')
-
-      (( players_online[$SERVER_NAME]-- ))
 
       PLAYER_NAME=$(echo "$line" | sed -E 's/.*\[(.*)\] (\S+) -> (\S+) has disconnected/\2/')
 
@@ -292,15 +275,8 @@ while true; do
       if (( ! server_active[$SERVER_NAME] )); then
         server_active[$SERVER_NAME]=1 # true
 
-        # Accounts for there being players online already
-        PANE=$(ssh ${server_users[$SERVER_NAME]}@${server_ips[$SERVER_NAME]} "tmux send-keys -t $SERVER_NAME 'list' Enter; sleep 0.5; tmux capture-pane -p -t $SERVER_NAME")
-        players_online[$SERVER_NAME]=$(echo "$PANE" | tac | grep -m 1 -oP 'There are \K[0-9]+(?= of a max of [0-9]+ players online:)')
-      fi
-
-      echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] ${players_online[$SERVER_NAME]} players online"
-
-      if (( ! players_online[$SERVER_NAME] )); then
-        start_timer $SERVER_NAME
+        # Spin off a script to monitor the server
+        server_monitor $SERVER_NAME
       fi
 
     # Reset the server tracking variable when the server is shutdown
