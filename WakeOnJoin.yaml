@@ -9,9 +9,6 @@ one-server-at-a-time: true
 # How long to allow the server to start up or stop before checking for errors, in seconds. Always overestimate, or there may be errors.
 lockout: 90
 
-# In the event that the server was already running when this script started, assume the computer should stay on after turning off the server?
-initial-awake: true
-
 # How long to wait after no players are left online before turning off the server
 shutdown-time: 1200
 
@@ -41,7 +38,6 @@ my_server: # These server names need to be the same as configured in velocity.to
 
   # Per-server customization options
   lockout: 120
-  initial-awake: true
 
 my_server_2:
   ip: "1.1.1.1"

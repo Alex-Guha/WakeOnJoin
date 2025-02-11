@@ -34,7 +34,6 @@ declare -A server_wake_commands
 declare -A server_lockout
 declare -A server_shutdown_time
 declare -A server_boot_time
-declare -A initial_awake
 
 # Script variables and flags
 declare -A players_online
@@ -42,7 +41,6 @@ declare -A server_active
 declare -A timer_active
 declare -A timer_pid
 declare -A sleep_pid
-declare -A initial_awake
 
 LOG=$(yq eval '.log' "$YAML_FILE")
 
@@ -51,11 +49,10 @@ ONE_SERVER_AT_A_TIME=$(to_boolean $(yq eval '.one-server-at-a-time' "$YAML_FILE"
 LOCKOUT=$(yq eval '.lockout' "$YAML_FILE")
 SHUTDOWN_TIME=$(yq eval '.shutdown-time' "$YAML_FILE")
 BOOT_TIME=$(yq eval '.boot-time' "$YAML_FILE")
-INITIAL_AWAKE=$(to_boolean $(yq eval '.initial-awake' "$YAML_FILE"))
 
 # Parse the YAML file using yq and populate the arrays
 while IFS= read -r SERVER; do
-  [[ "$SERVER" == "log" || "$SERVER" == "one-server-at-a-time" || "$SERVER" == "lockout" || "$SERVER" == "initial-awake" || "$SERVER" == "shutdown-time" || "$SERVER" == "boot-time" ]] && continue
+  [[ "$SERVER" == "log" || "$SERVER" == "one-server-at-a-time" || "$SERVER" == "lockout" || "$SERVER" == "shutdown-time" || "$SERVER" == "boot-time" ]] && continue
 
   # Populate associative arrays
   server_ips["$SERVER"]=$(yq eval ".\"$SERVER\".ip" "$YAML_FILE")
@@ -68,7 +65,6 @@ while IFS= read -r SERVER; do
   server_lockout["$SERVER"]=$(yq eval ".\"$SERVER\".lockout // \"$LOCKOUT\"" "$YAML_FILE")
   server_shutdown_time["$SERVER"]=$(yq eval ".\"$SERVER\".\"shutdown-time\" // \"$SHUTDOWN_TIME\"" "$YAML_FILE")
   server_boot_time["$SERVER"]=$(yq eval ".\"$SERVER\".\"boot-time\" // \"$BOOT_TIME\"" "$YAML_FILE")
-  initial_awake["$SERVER"]=$(to_boolean $(yq eval ".\"$SERVER\".\"initial-awake\" // \"$INITIAL_AWAKE\"" "$YAML_FILE"))
 
   players_online["$SERVER"]=0
   server_active["$SERVER"]=0 # False
@@ -118,32 +114,28 @@ start_timer() {
       echo "Shutdown PC server $1" >> $LOG
     fi
 
-    # Only put the PC to sleep if it wasn't already awake
-    if (( ! initial_awake[$1] )); then
+    
+    if ! nc -z -w 5 "${server_ips[$SERVER_NAME]}" "22" > /dev/null 2>&1; then
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] PC unreachable, may already be asleep."
+
+    elif [[ "${server_sleep_commands[$1]}" != "" ]]; then
       if [[ "${server_check_commands[$1]}" != "" ]]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Checking if computer is in lock screen."
-        if ! nc -z -w 5 "${server_ips[$SERVER_NAME]}" "22" > /dev/null 2>&1; then
-          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] PC unreachable, may already be asleep."
+        IN_USE=$(to_boolean $(ssh ${server_users[$1]}@${server_ips[$1]} "${server_check_commands[$1]}"))
+        
+        if (( ! IN_USE )); then
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Putting PC to sleep"
+          ssh ${server_users[$1]}@${server_ips[$1]} "${server_sleep_commands[$1]}" > /dev/null 2>&1
         else
-          IN_USE=$(to_boolean $(ssh ${server_users[$1]}@${server_ips[$1]} "${server_check_commands[$1]}"))
-
-          if (( ! IN_USE )); then
-            if [[ "${server_sleep_commands[$1]}" != "" ]]; then
-              echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Putting PC to sleep"
-              ssh ${server_users[$1]}@${server_ips[$1]} "${server_sleep_commands[$1]}" > /dev/null 2>&1
-
-            else
-              echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] No sleep command, skipping sleep."
-            fi
-          else
-            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] Computer not in lock screen, skipping sleep."
-          fi
+          echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] Computer not in lock screen, skipping sleep."
         fi
       else
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] No lock screen check command, skipping sleep."
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] No lock screen check command, putting PC to sleep"
+        ssh ${server_users[$1]}@${server_ips[$1]} "${server_sleep_commands[$1]}" > /dev/null 2>&1
       fi
+
     else
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] PC was already awake. Skipping sleep command."
+      echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ ] No sleep command."
     fi
   ) &
 
@@ -173,7 +165,7 @@ check_lockout() {
 
 
 while true; do
-  tail -n 0 -F "$LOG" | while read -r line; do
+  tail -n 0 --retry -F "$LOG" | while read -r line; do
 
     if echo "$line" | grep -q "unable to connect to server"; then
       SERVER_NAME=$(echo "$line" | sed -E 's/.*: unable to connect to server (.*)$/\1/')
@@ -222,11 +214,9 @@ while true; do
         # Check if the computer is already awake
         if nc -z -w 5 "${server_ips[$SERVER_NAME]}" "22" > /dev/null 2>&1; then
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Computer already awake."
-          initial_awake[$SERVER_NAME]=1 # true
         else
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Turning computer on."
           eval ${server_wake_commands[$SERVER_NAME]}
-          initial_awake[$SERVER_NAME]=0 # false
         fi
       fi
       
@@ -272,6 +262,8 @@ while true; do
       # Handles the case where the server was running before the script was started
       if (( ! server_active[$SERVER_NAME] )); then
         server_active[$SERVER_NAME]=1 # true
+
+        sleep 10  # TODO Think of a more elegant way to handle this, as mutliple players joining/leaving at the same time will mess up the player counter
 
         # Accounts for there being players online already
         PANE=$(ssh ${server_users[$SERVER_NAME]}@${server_ips[$SERVER_NAME]} "tmux send-keys -t $SERVER_NAME 'list' Enter; sleep 0.5; tmux capture-pane -p -t $SERVER_NAME")
