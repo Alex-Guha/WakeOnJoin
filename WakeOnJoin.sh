@@ -74,12 +74,12 @@ server_monitor() {
 
       # Check if 
       if ssh "${server_users[$1]}@${server_ips[$1]}" "tmux has-session -t $1" > /dev/null 2>&1; then
-        PANE=$(ssh ${server_users[$SERVER_NAME]}@${server_ips[$SERVER_NAME]} "tmux send-keys -t $SERVER_NAME 'list' Enter; sleep 0.5; tmux capture-pane -p -t $SERVER_NAME")
+        PANE=$(ssh ${server_users[$SERVER_NAME]}@${server_ips[$SERVER_NAME]} "tmux send-keys -t $SERVER_NAME 'list' Enter; sleep 0.5; tmux capture-pane -p -J -t $SERVER_NAME")
         PLAYERS_ONLINE=$(echo "$PANE" | tac | grep -m 1 -oP 'There are \K[0-9]+(?= of a max of [0-9]+ players online:)')
         if (( PLAYERS_ONLINE == 0 )); then
           sleep ${server_shutdown_time[$1]}
           
-          PANE=$(ssh ${server_users[$SERVER_NAME]}@${server_ips[$SERVER_NAME]} "tmux send-keys -t $SERVER_NAME 'list' Enter; sleep 0.5; tmux capture-pane -p -t $SERVER_NAME")
+          PANE=$(ssh ${server_users[$SERVER_NAME]}@${server_ips[$SERVER_NAME]} "tmux send-keys -t $SERVER_NAME 'list' Enter; sleep 0.5; tmux capture-pane -p -J -t $SERVER_NAME")
           PLAYERS_ONLINE=$(echo "$PANE" | tac | grep -m 1 -oP 'There are \K[0-9]+(?= of a max of [0-9]+ players online:)')
           if (( PLAYERS_ONLINE == 0 )); then
             break
