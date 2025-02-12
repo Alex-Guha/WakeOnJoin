@@ -91,7 +91,7 @@ server_monitor() {
     done
 
     # Handles stopping server
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] No players have logged on in at least 15 minutes, turning server $1 off"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] No players have logged on in $(( server_shutdown_time[$1] / 60 ))-$(( server_shutdown_time[$1] / 30 )) minutes, turning server $1 off"
     if ssh "${server_users[$1]}@${server_ips[$1]}" "tmux has-session -t $1" > /dev/null 2>&1; then
       ssh ${server_users[$1]}@${server_ips[$1]} "tmux send-keys -t $1 'stop' C-m"
       echo $(date +%s) > /tmp/{$1}_lockout
@@ -125,9 +125,9 @@ server_monitor() {
     elif [[ "${server_sleep_commands[$1]}" != "" ]]; then
       if [[ "${server_check_commands[$1]}" != "" ]]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Checking if computer is in lock screen."
-        IN_USE=$(to_boolean $(ssh ${server_users[$1]}@${server_ips[$1]} "${server_check_commands[$1]}"))
+        IN_LOCK=$(to_boolean $(ssh ${server_users[$1]}@${server_ips[$1]} "${server_check_commands[$1]}"))
         
-        if (( ! IN_USE )); then
+        if (( IN_LOCK )); then
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Putting PC to sleep"
           ssh ${server_users[$1]}@${server_ips[$1]} "${server_sleep_commands[$1]}" > /dev/null 2>&1
         else
