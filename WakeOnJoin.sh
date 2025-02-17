@@ -1,24 +1,5 @@
 #!/bin/bash
 
-# Used to ensure yaml imported data is in the desired type
-to_boolean() {
-  case "$1" in
-    true) return 1 ;;
-    True) return 1 ;;
-    TRUE) return 1 ;;
-    ture) return 1 ;;
-    rtue) return 1 ;;
-    false) return 0 ;;
-    False) return 0 ;;
-    FALSE) return 0 ;;
-    flase) return 0 ;;
-    fasle) return 0 ;;
-    0) return 0 ;;
-    1) return 1 ;;
-    *) return 0 ;;
-  esac
-}
-
 # Load the YAML file
 YAML_FILE="WakeOnJoin.yaml"
 
@@ -40,7 +21,7 @@ declare -A server_active
 
 LOG=$(yq eval '.log' "$YAML_FILE")
 
-ONE_SERVER_AT_A_TIME=$(to_boolean $(yq eval '.one-server-at-a-time' "$YAML_FILE"))
+ONE_SERVER_AT_A_TIME=$(yq eval '.one-server-at-a-time' "$YAML_FILE")
 
 LOCKOUT=$(yq eval '.lockout' "$YAML_FILE")
 SHUTDOWN_TIME=$(yq eval '.shutdown-time' "$YAML_FILE")
@@ -125,9 +106,8 @@ server_monitor() {
     elif [[ "${server_sleep_commands[$1]}" != "" ]]; then
       if [[ "${server_check_commands[$1]}" != "" ]]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Checking if computer is in lock screen."
-        IN_LOCK=$(to_boolean $(ssh ${server_users[$1]}@${server_ips[$1]} "${server_check_commands[$1]}"))
-        
-        if (( IN_LOCK )); then
+        IN_LOCK=$(ssh ${server_users[$1]}@${server_ips[$1]} "${server_check_commands[$1]}" | sed 's/\r$//')
+        if [[ "$IN_LOCK" == "True" ]]; then
           echo "[$(date '+%Y-%m-%d %H:%M:%S')] [+] Putting PC to sleep"
           ssh ${server_users[$1]}@${server_ips[$1]} "${server_sleep_commands[$1]}" > /dev/null 2>&1
         else
@@ -200,7 +180,7 @@ while true; do
 
         # Prevents players from starting multiple servers at the same time
         # TODO Add feedback to the player so they know there's a server up, even if it isn't the one they wanted
-        if (( ONE_SERVER_AT_A_TIME )); then
+        if [[ "$ONE_SERVER_AT_A_TIME" == "true" ]]; then
           for SERVER_ACTIVE in "${server_active[@]}"; do
             if (( SERVER_ACTIVE )); then
               echo "[$(date '+%Y-%m-%d %H:%M:%S')] [-] One server at a time. Skipping $SERVER_NAME startup."

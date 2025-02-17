@@ -88,7 +88,7 @@ If you are allowing only one server at a time to be running (i.e. `one-server-at
 
 ---
 
-## Todo
+## Potential Todo
 
 - [x] Find a way to check if the user is using the pc and do not put it to sleep if so
 - [ ] Separate out the `tmux` commands into the yaml for increased user control
